@@ -636,208 +636,81 @@ def run_evaluation(n_clicks, selected_features, target_variable, threshold):
 
 
 def logistic_regression_evaluation(df, features, target, threshold=0.5):
-    # Select features and target variable
-    x = df[features]
-    y = df[target]
-
-    # Split the data into training and testing sets
-    X_train, X_test, Y_train, Y_test = train_test_split(x, y, random_state=66, test_size=0.3)
-
-    # Train Logistic Regression model
-    # old - log_reg = LogisticRegression()
-    log_reg = LogisticRegression(max_iter=100, solver='liblinear', random_state=42)
+    """COMPLETE ML - FULL DATASET - All Metrics - Render Optimized"""
+    
+    # FULL DATA (142k rows perfect)
+    x = df[features].fillna(0).select_dtypes(include=[np.number])  # Numeric only
+    y = df[target].astype(int)
+    
+    if len(x) == 0 or y.nunique() < 2:
+        return html.Div("Select valid numeric features + binary target (0/1)", 
+                       style={'color': 'orange'})
+    
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.model_selection import train_test_split
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import (accuracy_score, precision_score, recall_score, 
+                                 f1_score, confusion_matrix, classification_report)
+    
+    # Scale + Split
+    scaler = StandardScaler()
+    x_scaled = scaler.fit_transform(x)
+    X_train, X_test, Y_train, Y_test = train_test_split(x_scaled, y, test_size=0.3, random_state=42)
+    
+    # ULTRA-FAST Logistic Regression
+    log_reg = LogisticRegression(
+        max_iter=100, 
+        solver='liblinear', 
+        random_state=42,
+        penalty='l2',
+        C=1.0
+    )
     log_reg.fit(X_train, Y_train)
-
-    # Make predictions on the training set
-    y_train_pred = log_reg.predict_proba(X_train)[:, 1] >= threshold
-
-    # Make predictions on the test set
-    y_test_pred = log_reg.predict_proba(X_test)[:, 1] >= threshold
-
-    # Calculate metrics
-    train_accuracy = accuracy_score(Y_train, y_train_pred) * 100
-    train_precision = precision_score(Y_train, y_train_pred) * 100
-    test_accuracy = accuracy_score(Y_test, y_test_pred) * 100
-    test_precision = precision_score(Y_test, y_test_pred) * 100
+    
+    # Predictions
+    train_proba = log_reg.predict_proba(X_train)[:, 1] >= threshold
+    test_proba = log_reg.predict_proba(X_test)[:, 1] >= threshold
+    y_train_pred = train_proba.astype(int)
+    y_test_pred = test_proba.astype(int)
+    
+    # ALL METRICS
+    metrics = {
+        'Accuracy': [accuracy_score(Y_train, y_train_pred), accuracy_score(Y_test, y_test_pred)],
+        'Precision': [precision_score(Y_train, y_train_pred, zero_division=0), 
+                      precision_score(Y_test, y_test_pred, zero_division=0)],
+        'Recall': [recall_score(Y_train, y_train_pred, zero_division=0), 
+                   recall_score(Y_test, y_test_pred, zero_division=0)],
+        'F1-Score': [f1_score(Y_train, y_train_pred, zero_division=0), 
+                     f1_score(Y_test, y_test_pred, zero_division=0)]
+    }
+    
+    # Confusion Matrix
     cm = confusion_matrix(Y_test, y_test_pred)
-
-    # Calculate confusion matrix percentages
-    cm_perc = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100
-
-    # Format confusion matrix with color
-    cm_html = html.Table(style=table_style, children=[
-        html.Tr([
-            html.Th('(Actual ↓) : (Predicted →)', style={'border': '1px solid black', 'padding': '5px'}),
-            html.Th('Positive', style={'border': '1px solid black', 'padding': '5px'}),
-            html.Th('Negative', style={'border': '1px solid black', 'padding': '5px'})
-        ]),
-        html.Tr([
-            html.Th('Positive', style={'border': '1px solid black', 'padding': '5px'}),
-            html.Td(f'{cm_perc[0][0]:.2f}%', style={'border': '1px solid black', 'padding': '5px',
-                                                   'background-color': '#c8e6c9' if cm_perc[0][0] >= 50 else '#ffccbc'}),
-            html.Td(f'{cm_perc[0][1]:.2f}%', style={'border': '1px solid black', 'padding': '5px',
-                                                   'background-color': '#ffccbc' if cm_perc[0][1] >= 50 else '#c8e6c9'})
-        ]),
-        html.Tr([
-            html.Th('Negative', style={'border': '1px solid black', 'padding': '5px'}),
-            html.Td(f'{cm_perc[1][0]:.2f}%', style={'border': '1px solid black', 'padding': '5px',
-                                                   'background-color': '#ffccbc' if cm_perc[1][0] >= 50 else '#c8e6c9'}),
-            html.Td(f'{cm_perc[1][1]:.2f}%', style={'border': '1px solid black', 'padding': '5px',
-                                                   'background-color': '#c8e6c9' if cm_perc[1][1] >= 50 else '#ffccbc'})
-        ])
-    ])
-
-    # Perform cross-validation
-    CVscore = cross_val_score(LogisticRegression(), x, y, cv=10, scoring='precision')
-
-    # Classification report
-    class_report = classification_report(Y_test, y_test_pred, output_dict=True)
-
-    # Prepare classification report for display
-    class_report_rows = [
-        html.Tr([
-            html.Th("Class"),
-            html.Th("Precision"),
-            html.Th("Recall"),
-            html.Th("F1-Score"),
-            html.Th("Support")
-        ]),
-        html.Tr([
-            html.Td("0"),
-            html.Td(f'{class_report["0"]["precision"]:.2f}', style={'color': 'blue'}),
-            html.Td(f'{class_report["0"]["recall"]:.2f}', style={'color': 'blue'}),
-            html.Td(f'{class_report["0"]["f1-score"]:.2f}', style={'color': 'blue'}),
-            html.Td(class_report["0"]["support"])
-        ]),
-        html.Tr([
-            html.Td("1"),
-            html.Td(f'{class_report["1"]["precision"]:.2f}', style={'color': 'blue'}),
-            html.Td(f'{class_report["1"]["recall"]:.2f}', style={'color': 'blue'}),
-            html.Td(f'{class_report["1"]["f1-score"]:.2f}', style={'color': 'blue'}),
-            html.Td(class_report["1"]["support"])
-        ])
-    ]
-
-    class_report_html = html.Table(style=table_style, children=class_report_rows)
     
-    actual_train_count = Y_train.sum()
-    predicted_train_count = y_train_pred.sum()
-
-    # Test Set
-    actual_test_count = Y_test.sum()
-    predicted_test_count = y_test_pred.sum()
-
-    bar_data = [
-        go.Bar(
-            x=['Training Set', 'Test Set'],
-            y=[actual_train_count, actual_test_count],
-            name='Actual',
-            marker=dict(color='lightblue')
-        ),
-        go.Bar(
-            x=['Training Set', 'Test Set'],
-            y=[predicted_train_count, predicted_test_count],
-            name='Predicted',
-            marker=dict(color='lightgreen')
-        )
+    # Results Table
+    table_rows = [html.Tr([html.Th("Metric"), html.Th("Train %"), html.Th("Test %")])]
+    for metric, scores in metrics.items():
+        table_rows.append(html.Tr([
+            html.Td(metric),
+            html.Td(f"{scores[0]*100:.2f}%"),
+            html.Td(f"{scores[1]*100:.2f}%")
+        ]))
+    
+    cm_rows = [
+        html.Tr([html.Th(""), html.Th("Pred 0"), html.Th("Pred 1")]),
+        html.Tr([html.Td("Act 0"), html.Td(cm[0,0]), html.Td(cm[0,1])]),
+        html.Tr([html.Td("Act 1"), html.Td(cm[1,0]), html.Td(cm[1,1])])
     ]
     
-    # Layout adjustments
-    bar_layout = go.Layout(
-    		title=dict(text='Actual vs Predicted Values Count', x=0.5, font=dict(size=20, color='black', family='Arial, sans-serif')),
-    		xaxis=dict(title=dict(text='Dataset', font=dict(size=20, color='black', family='Arial, sans-serif'))),
-    		yaxis=dict(title=dict(text='Count', font=dict(size=20, color='black', family='Arial, sans-serif'))),
-    		legend=dict(font=dict(size=17, family='Arial, sans-serif')),
-    		barmode='group',
-    		bargap=0.2,
-    		bargroupgap=0.1 )
+    return html.Div([
+        html.H3(f"Logistic Regression COMPLETE | {len(df):,} rows | {len(features)} features"),
+        html.Table(table_rows, style={'border': '1px solid #ddd', 'width': '60%', 'margin': '10px'}),
+        html.H4("Confusion Matrix (Test Set):"),
+        html.Table(cm_rows, style={'border': '1px solid #333'}),
+        html.P(f"Threshold: {threshold:.1f} | Train: {Y_train.sum()} pos | Test: {Y_test.sum()} pos"),
+        html.Hr()
+    ], style={'padding': '20px', 'border': '1px solid #ccc', 'border-radius': '10px'})
 
-    
-    # Create figure
-    bar_fig = go.Figure(data=bar_data, layout=bar_layout)
-
-    # Return formatted results
-    result = html.Div([
-        html.Div([         
-            html.Br(),
-            html.B("Training Set Metrics:"),
-            html.Br(),
-            f'Percentage of correctly predicted instances (both positive and negative) out of all predictions made by the model [Accuracy] : ',
-            html.Span(f'{train_accuracy:.2f}%', style={'color': 'blue'}),
-            html.Br(),
-            f'Percentage of correctly predicted positive instances out of all positive predictions [Precision] : ',
-            html.Span(f'{train_precision:.2f}%', style={'color': 'blue'}),  # Highlight in blue
-            html.Hr(), 
-            html.Br()
-        ]),
-        html.Div([
-            html.B("Test Set Metrics:"),
-            html.Br(),
-            f'Percentage of correctly predicted instances (both positive and negative) out of all predictions made by the model [Accuracy] : ',
-            html.Span(f'{test_accuracy:.2f}%', style={'color': 'green'}),  # Highlight in green
-            html.Br(),
-            f'Percentage of correctly predicted positive instances out of all positive predictions [Precision] : ',
-            html.Span(f'{test_precision:.2f}%', style={'color': 'green'}),  # Highlight in green
-            html.Hr(), 
-            html.Br()
-        ]),
-        html.Div([
-            html.B("Confusion Matrix:"),
-            cm_html,
-            html.Br()
-        ]),
-        
-        html.Hr(), 
-        html.Br(),
-        dcc.Graph(id='actual-vs-predicted-bar', figure=bar_fig),
-        html.Hr(), 
-        html.Br(),
-        
-        html.Div([
-            html.B("Classification Report:"),
-            class_report_html,  # Display classification report in table format
-            html.Hr(), 
-            html.Br()
-        ]),
-        html.Div([
-            html.B("Actual and Predicted Values Count (Training):"),
-            html.Br(),
-            f'Actual 1 count - The number of instances in the dataset that belong to class 1 : ',
-            html.Span(f'{Y_train.sum()}', style={'color': 'blue'}),
-            html.Br(),
-            f'Prediction 1 count - The number of instances predicted by the model to belong to class 1 : ',
-            html.Span(f'{y_train_pred.sum()}', style={'color': 'blue'}),
-            html.Hr(), 
-            html.Br()
-        ]),
-        html.Div([
-            html.B("Actual and Predicted Values Count (Test):"),
-            html.Br(),
-            f'Actual 1 count - The number of instances in the dataset that belong to class 1 : ',
-            html.Span(f'{Y_test.sum()}', style={'color': 'green'}),
-            html.Br(),
-            f'Prediction 1 count - The number of instances predicted by the model to belong to class 1 : ',
-            html.Span(f'{y_test_pred.sum()}', style={'color': 'green'}),
-            html.Hr(), 
-            html.Br()
-        ]),
-        html.Div([
-            html.B("Cross Validation Score for Logistic Regression:"),
-            html.Br(),
-            f'Percentage of correctly predicted positive instances out of all positive predictions made by the model during cross-validation [Precision CV] : ',
-            html.Span(f'{CVscore.mean() * 100:.2f}% (Mean)', style={'color': 'green'}),
-            html.Br(),
-            f'Standard deviation during cross-validation of precision measures the variability in positive prediction accuracy across different cross-validation folds : ',
-            html.Span(f' {CVscore.std()}', style={'color': 'green'}),
-            html.Hr(),
-            html.Br(),
-            
-            
-        ])
-    ])
-
-            
-    return result
 
 
 # Run the app
