@@ -20,13 +20,13 @@ from sklearn.metrics import accuracy_score, precision_score, confusion_matrix, c
 
 
 
-df = pd.read_csv('https://raw.githubusercontent.com/shivamch01601/dash-app-deploy/main/df_new.csv')
+df = pd.read_csv('https://raw.githubusercontent.com/shivamch01601/dash-app-deploy/main/df_new.csv', nrows = 100)
 df1 = pd.read_csv('https://raw.githubusercontent.com/shivamch01601/dash-app-deploy/main/df1.csv', sep='|')
 df2 = pd.read_csv('https://raw.githubusercontent.com/shivamch01601/dash-app-deploy/main/df2.csv', sep='|')
 df3 = pd.read_csv('https://raw.githubusercontent.com/shivamch01601/dash-app-deploy/main/df3.csv', sep='|')
 df4 = pd.read_csv('https://raw.githubusercontent.com/shivamch01601/dash-app-deploy/main/df4.csv', sep='|')
 df5 = pd.read_csv('https://raw.githubusercontent.com/shivamch01601/dash-app-deploy/main/df5.csv', sep='|')
-df = df.sample(n=500, random_state=42).reset_index(drop=True)  # Sample 10k rows 
+# df = df.sample(n=500, random_state=42).reset_index(drop=True)  # Sample 10k rows 
 
 # Dash app
 app = dash.Dash(__name__)
