@@ -636,81 +636,184 @@ def run_evaluation(n_clicks, selected_features, target_variable, threshold):
 
 
 def logistic_regression_evaluation(df, features, target, threshold=0.5):
-    """COMPLETE ML - FULL DATASET - All Metrics - Render Optimized"""
+    """Professional ML Results - Airline Loyalty Analytics - Full Dataset"""
     
-    # FULL DATA (142k rows perfect)
-    x = df[features].fillna(0).select_dtypes(include=[np.number])  # Numeric only
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.model_selection import train_test_split, cross_val_score
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import (accuracy_score, precision_score, recall_score, f1_score,
+                                 confusion_matrix, classification_report)
+    
+    # Data preparation (full dataset)
+    x = df[features].fillna(0).select_dtypes(include=[np.number])
     y = df[target].astype(int)
     
     if len(x) == 0 or y.nunique() < 2:
-        return html.Div("Select valid numeric features + binary target (0/1)", 
-                       style={'color': 'orange'})
+        return html.Div([
+            html.H2("Data Preparation Error", style={'color': '#d32f2f', 'text-align': 'center'}),
+            html.P("Please select valid numeric features and a binary target variable (0/1).", 
+                   style={'text-align': 'center', 'font-size': '16px', 'color': '#666'})
+        ], style={'max-width': '800px', 'margin': '0 auto', 'padding': '30px'})
     
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.model_selection import train_test_split
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.metrics import (accuracy_score, precision_score, recall_score, 
-                                 f1_score, confusion_matrix, classification_report)
-    
-    # Scale + Split
+    # Preprocessing and train-test split
     scaler = StandardScaler()
     x_scaled = scaler.fit_transform(x)
     X_train, X_test, Y_train, Y_test = train_test_split(x_scaled, y, test_size=0.3, random_state=42)
     
-    # ULTRA-FAST Logistic Regression
-    log_reg = LogisticRegression(
-        max_iter=100, 
-        solver='liblinear', 
-        random_state=42,
-        penalty='l2',
-        C=1.0
-    )
+    # Logistic Regression model
+    log_reg = LogisticRegression(max_iter=100, solver='liblinear', random_state=42)
     log_reg.fit(X_train, Y_train)
     
-    # Predictions
-    train_proba = log_reg.predict_proba(X_train)[:, 1] >= threshold
-    test_proba = log_reg.predict_proba(X_test)[:, 1] >= threshold
-    y_train_pred = train_proba.astype(int)
-    y_test_pred = test_proba.astype(int)
+    # Predictions with threshold
+    y_train_pred = (log_reg.predict_proba(X_train)[:, 1] >= threshold).astype(int)
+    y_test_pred = (log_reg.predict_proba(X_test)[:, 1] >= threshold).astype(int)
     
-    # ALL METRICS
-    metrics = {
-        'Accuracy': [accuracy_score(Y_train, y_train_pred), accuracy_score(Y_test, y_test_pred)],
-        'Precision': [precision_score(Y_train, y_train_pred, zero_division=0), 
-                      precision_score(Y_test, y_test_pred, zero_division=0)],
-        'Recall': [recall_score(Y_train, y_train_pred, zero_division=0), 
-                   recall_score(Y_test, y_test_pred, zero_division=0)],
-        'F1-Score': [f1_score(Y_train, y_train_pred, zero_division=0), 
-                     f1_score(Y_test, y_test_pred, zero_division=0)]
-    }
+    # Performance metrics
+    train_accuracy = accuracy_score(Y_train, y_train_pred) * 100
+    train_precision = precision_score(Y_train, y_train_pred, zero_division=0) * 100
+    test_accuracy = accuracy_score(Y_test, y_test_pred) * 100
+    test_precision = precision_score(Y_test, y_test_pred, zero_division=0) * 100
     
-    # Confusion Matrix
+    train_recall = recall_score(Y_train, y_train_pred, zero_division=0) * 100
+    test_recall = recall_score(Y_test, y_test_pred, zero_division=0) * 100
+    train_f1 = f1_score(Y_train, y_train_pred, zero_division=0) * 100
+    test_f1 = f1_score(Y_test, y_test_pred, zero_division=0) * 100
+    
+    # Confusion matrix
     cm = confusion_matrix(Y_test, y_test_pred)
+    cm_perc = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100
     
-    # Results Table
-    table_rows = [html.Tr([html.Th("Metric"), html.Th("Train %"), html.Th("Test %")])]
-    for metric, scores in metrics.items():
-        table_rows.append(html.Tr([
-            html.Td(metric),
-            html.Td(f"{scores[0]*100:.2f}%"),
-            html.Td(f"{scores[1]*100:.2f}%")
-        ]))
+    # 5-fold cross-validation
+    cv_scores = cross_val_score(LogisticRegression(max_iter=50, solver='liblinear'), 
+                               x_scaled, y, cv=5, scoring='precision', n_jobs=1)
     
-    cm_rows = [
-        html.Tr([html.Th(""), html.Th("Pred 0"), html.Th("Pred 1")]),
-        html.Tr([html.Td("Act 0"), html.Td(cm[0,0]), html.Td(cm[0,1])]),
-        html.Tr([html.Td("Act 1"), html.Td(cm[1,0]), html.Td(cm[1,1])])
-    ]
+    # Classification report
+    class_report = classification_report(Y_test, y_test_pred, output_dict=True, zero_division=0)
     
+    # Counts
+    actual_train = int(Y_train.sum())
+    pred_train = int(y_train_pred.sum())
+    actual_test = int(Y_test.sum())
+    pred_test = int(y_test_pred.sum())
+    
+    # Professional centered layout
     return html.Div([
-        html.H3(f"Logistic Regression COMPLETE | {len(df):,} rows | {len(features)} features"),
-        html.Table(table_rows, style={'border': '1px solid #ddd', 'width': '60%', 'margin': '10px'}),
-        html.H4("Confusion Matrix (Test Set):"),
-        html.Table(cm_rows, style={'border': '1px solid #333'}),
-        html.P(f"Threshold: {threshold:.1f} | Train: {Y_train.sum()} pos | Test: {Y_test.sum()} pos"),
-        html.Hr()
-    ], style={'padding': '20px', 'border': '1px solid #ccc', 'border-radius': '10px'})
-
+        # Header
+        html.Div([
+            html.H2("Logistic Regression Model Results", 
+                   style={'color': '#1a237e', 'text-align': 'center', 'margin-bottom': '5px'}),
+            html.H4(f"Airline Loyalty Program Analytics | {len(df):,} Observations | {len(features)} Features", 
+                   style={'color': '#3f51b5', 'text-align': 'center', 'margin-bottom': '20px'})
+        ], style={'background': '#e8eaf6', 'padding': '20px', 'border-radius': '8px', 
+                 'margin-bottom': '30px', 'border-left': '5px solid #3f51b5'}),
+        
+        # Performance Metrics Table
+        html.Div([
+            html.Table([
+                html.Tr([
+                    html.Th("Metric", style={'background': '#3f51b5', 'color': 'white'}),
+                    html.Th("Training", style={'background': '#2196f3', 'color': 'white'}),
+                    html.Th("Test", style={'background': '#4caf50', 'color': 'white'})
+                ]),
+                html.Tr([
+                    html.Td("Accuracy"),
+                    html.Td(f"{train_accuracy:.2f}%", style={'background': '#e3f2fd'}),
+                    html.Td(f"{test_accuracy:.2f}%", style={'background': '#e8f5e8'})
+                ]),
+                html.Tr([
+                    html.Td("Precision"),
+                    html.Td(f"{train_precision:.2f}%", style={'background': '#e3f2fd'}),
+                    html.Td(f"{test_precision:.2f}%", style={'background': '#e8f5e8'})
+                ]),
+                html.Tr([
+                    html.Td("Recall"),
+                    html.Td(f"{train_recall:.2f}%", style={'background': '#e3f2fd'}),
+                    html.Td(f"{test_recall:.2f}%", style={'background': '#e8f5e8'})
+                ]),
+                html.Tr([
+                    html.Td("F1-Score"),
+                    html.Td(f"{train_f1:.2f}%", style={'background': '#e3f2fd'}),
+                    html.Td(f"{test_f1:.2f}%", style={'background': '#e8f5e8'})
+                ])
+            ], style={'border-collapse': 'collapse', 'width': '100%', 'margin': '20px 0', 
+                     'box-shadow': '0 2px 10px rgba(0,0,0,0.1)'})
+        ], style={'text-align': 'center'}),
+        
+        # Confusion Matrix
+        html.Div([
+            html.H4("Confusion Matrix - Test Set (Percentages)", 
+                   style={'text-align': 'center', 'color': '#1a237e', 'margin-bottom': '15px'}),
+            html.Table([
+                html.Tr([
+                    html.Th("", style={'background': '#424242', 'color': 'white'}),
+                    html.Th("Predicted 0", style={'background': '#f44336'}),
+                    html.Th("Predicted 1", style={'background': '#4caf50'})
+                ]),
+                html.Tr([
+                    html.Td("Actual 0", style={'background': '#ffebee'}),
+                    html.Td(f"{cm_perc[0][0]:.1f}%", style={'font-weight': 'bold'}),
+                    html.Td(f"{cm_perc[0][1]:.1f}%", style={'font-weight': 'bold'})
+                ]),
+                html.Tr([
+                    html.Td("Actual 1", style={'background': '#e8f5e8'}),
+                    html.Td(f"{cm_perc[1][0]:.1f}%", style={'font-weight': 'bold'}),
+                    html.Td(f"{cm_perc[1][1]:.1f}%", style={'font-weight': 'bold'})
+                ])
+            ], style={'border-collapse': 'collapse', 'margin': '0 auto 20px', 'font-size': '14px'})
+        ], style={'text-align': 'center'}),
+        
+        # Bar Chart
+        html.Div([
+            dcc.Graph(figure=go.Figure(data=[
+                go.Bar(x=['Training', 'Test'], y=[actual_train, actual_test], 
+                      name='Actual Positive', marker_color='#2196f3'),
+                go.Bar(x=['Training', 'Test'], y=[pred_train, pred_test], 
+                      name='Predicted Positive', marker_color='#4caf50')
+            ], layout=go.Layout(
+                title='Actual vs Predicted Positive Counts (Class 1)',
+                xaxis_title='Dataset', yaxis_title='Count',
+                barmode='group', height=400, showlegend=True,
+                font=dict(size=12), margin=dict(l=40, r=40, t=50, b=40)
+            )))
+        ], style={'margin': '30px 0'}),
+        
+        # Classification Report Table
+        html.Div([
+            html.H4("Detailed Classification Report - Test Set", 
+                   style={'text-align': 'center', 'color': '#1a237e'}),
+            html.Table([
+                html.Tr([html.Th(col, style={'background': '#3f51b5', 'color': 'white', 'padding': '8px'}) 
+                        for col in ['Class', 'Precision', 'Recall', 'F1-Score', 'Support']]),
+                html.Tr([
+                    html.Td("Class 0"),
+                    html.Td(f"{class_report['0']['precision']:.3f}"),
+                    html.Td(f"{class_report['0']['recall']:.3f}"),
+                    html.Td(f"{class_report['0']['f1-score']:.3f}"),
+                    html.Td(int(class_report['0']['support']))
+                ]),
+                html.Tr([
+                    html.Td("Class 1"),
+                    html.Td(f"{class_report['1']['precision']:.3f}"),
+                    html.Td(f"{class_report['1']['recall']:.3f}"),
+                    html.Td(f"{class_report['1']['f1-score']:.3f}"),
+                    html.Td(int(class_report['1']['support']))
+                ])
+            ], style={'border-collapse': 'collapse', 'margin': '20px auto'})
+        ]),
+        
+        # Cross-Validation
+        html.Div([
+            html.H4("Model Stability - 5-Fold Cross-Validation (Precision)", 
+                   style={'text-align': 'center', 'color': '#1a237e'}),
+            html.P(f"Mean Precision: {cv_scores.mean()*100:.2f}% (Std: ±{cv_scores.std():.2f}%)", 
+                  style={'font-size': '18px', 'text-align': 'center', 'color': '#388e3c', 
+                        'background': '#e8f5e8', 'padding': '10px', 'border-radius': '5px'})
+        ], style={'margin-top': '30px'})
+        
+    ], style={'max-width': '1100px', 'margin': '20px auto', 'padding': '30px', 
+              'background': '#fafafa', 'border-radius': '12px', 
+              'box-shadow': '0 4px 20px rgba(0,0,0,0.08)'})
+'10px'})
 
 
 # Run the app
