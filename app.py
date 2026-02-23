@@ -1,105 +1,151 @@
-﻿# libraries
+# ================= LIBRARIES =================
 import dash
 import pandas as pd
 import numpy as np
 import seaborn as sns
 import plotly.graph_objects as go
-from dash import Dash, dcc, html, Input, Output, State
-import plotly.express as px
-from plotly.subplots import make_subplots  
-import matplotlib.pyplot as plt
-import plotly.io as pio
-import matplotlib.colors as colors
+from dash import dcc, html, Input, Output, State
 from plotly.subplots import make_subplots
-from plotly.tools import mpl_to_plotly
-import statsmodels.api as sm
 from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_score, confusion_matrix, classification_report
 
+# ================= DATA =================
+df = pd.read_csv("df_new.csv")
+df1 = pd.read_csv("df1.csv", sep='|')
+df2 = pd.read_csv("df2.csv", sep='|')
+df3 = pd.read_csv("df3.csv", sep='|')
+df4 = pd.read_csv("df4.csv", sep='|')
+df5 = pd.read_csv("df5.csv", sep='|')
 
-
-
-df = pd.read_csv('https://raw.githubusercontent.com/shivamch01601/dash-app-deploy/main/df_new.csv')
-df1 = pd.read_csv('https://raw.githubusercontent.com/shivamch01601/dash-app-deploy/main/df1.csv', sep='|')
-df2 = pd.read_csv('https://raw.githubusercontent.com/shivamch01601/dash-app-deploy/main/df2.csv', sep='|')
-df3 = pd.read_csv('https://raw.githubusercontent.com/shivamch01601/dash-app-deploy/main/df3.csv', sep='|')
-df4 = pd.read_csv('https://raw.githubusercontent.com/shivamch01601/dash-app-deploy/main/df4.csv', sep='|')
-df5 = pd.read_csv('https://raw.githubusercontent.com/shivamch01601/dash-app-deploy/main/df5.csv', sep='|')
-# df = df.sample(n=10000, random_state=42).reset_index(drop=True)  # Sample 10k rows 
-
-# Dash app
-app = dash.Dash(__name__)
-server = app.server
-
-styles = {
-    'textAlign': 'center',
-    'fontFamily': 'Arial, sans-serif',
-    'fontSize': '16px',
-    'lineHeight': '1.6'
-}
-
+# ================= STYLES =================
 table_style = {
     'borderCollapse': 'collapse',
     'margin': '10px auto',
     'textAlign': 'center',
-    'fontFamily': 'Arial, sans-serif',
+    'fontFamily': 'Arial',
     'fontSize': '14px',
     'width': '50%'
 }
 
-# Layout for the entire app
-app.layout = html.Div(style={'textAlign': 'center', 'width': '80%', 'margin': 'auto'}, children=[
-    # Layout for graph 1
-    html.Div([
-        html.Div([
-        html.H3("Welcome to our Interactive Dashboard for Airline Loyalty Program Data! This powerful tool is designed to help you explore, visualize, and analyze the earning and redemption activities of a hypothetical airline's loyalty program customers. By leveraging this dashboard, you can gain valuable insights into customer behavior, preferences, and trends, which enable businesses to make data-driven decisions to enhance the loyalty program.",
-           style={'color': 'blue'}),
-        html.P("Scroll below for an exciting modelling exercise !!",
-           style={'color': 'red', 'font-weight': 'bold'}),
-        ], style={'color': 'blue', 'font-weight': 'bold'}),
-        
-        html.H1("Historical Earn and Burn Over Time"),
 
-        # Text description for Graph 1
-        html.Div([
-            html.P(
-                "This graph shows the historical earn and burn over time. "
-                "You can adjust the year range using the slider below."
-            )
-        ], style={'margin-bottom': '20px'}),
+# ================= APP =================
+app = dash.Dash(__name__, suppress_callback_exceptions=True)
+server = app.server
 
-        html.Div([
-            html.H3("Select Year Range"),
-            dcc.RangeSlider(
-                id='year_range_slider_main',
-                min=1997,
-                max=2022,
-                value=[1997, 2022],
-                marks={year: str(year) for year in range(1997, 2023)},
-                step=1
-            )
-        ], style={'margin-bottom': '20px'}),
-        
-        # Graph with description text at the top
-        dcc.Graph(
-            id='graph1-main', style={'width': '100%', 'float': 'left'}
+
+# GLOBAL IFRAME RESIZE SCRIPT (runs on all pages)
+app.index_string = """
+<!DOCTYPE html>
+<html>
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+    </head>
+    <body>
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+            <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                var last = 0;
+                setInterval(function () {
+                    var height = document.documentElement.scrollHeight;
+                    if (height !== last) {
+                        last = height;
+                        parent.postMessage({ type: "iframeHeight", height: height },"*");
+                    }
+                }, 200);
+            });
+            </script>
+        </footer>
+    </body>
+</html>
+"""
+
+app.layout = html.Div([
+    dcc.Location(id='url'),
+    html.Div(id='page-content', style={'width': '95%', 'margin': '0 auto','textAlign': 'center'})
+])
+
+# ================= HOME PAGE =================
+def home_page():
+    return html.Div([
+        # Main Heading
+        html.H1(
+            "Welcome to our Interactive Dashboard for Airline Loyalty Program Data!",
+            style={
+                'color': '#0d47a1', 
+                'textAlign': 'center', 
+                'fontSize': '32px', 
+                'fontWeight': 'bold',
+                'marginBottom': '20px'
+            }
         ),
-    ]),
-    # Layout for graph 2
-    html.Div([
-        html.H1("Historical Earn with Different Channels"),
-
-        # Text description for Graph 2
+        
+        # Subheading / Description
+        html.P(
+            "This powerful tool is designed to help you explore, visualize, and analyze "
+            "the earning and redemption activities of a hypothetical airline's loyalty program customers. "
+            "By leveraging this dashboard, you can gain valuable insights into customer behavior, preferences, "
+            "and trends, which enable businesses to make data-driven decisions to enhance the loyalty program.",
+            style={
+                'color': '#424242', 
+                'textAlign': 'center', 
+                'fontSize': '18px', 
+                'margin': '0 auto 30px auto', 
+                'width': '80%', 
+                'lineHeight': '1.6'
+            }
+        ),
+        
+        # Call to action
+        html.P(
+            "Please click on the section below that you want to explore:",
+            style={
+                'color': '#f57c00', 
+                'textAlign': 'center', 
+                'fontSize': '20px', 
+                'fontWeight': 'bold',
+                'marginBottom': '30px'
+            }
+        ),
+        
+        # Links to pages
         html.Div([
-            html.P(
-                "This graph shows the historical earn with different channels over time. "
-                "You can adjust the year range and select channels using the sliders and dropdowns below."
-            )
-        ], style={'margin-bottom': '20px'}),
+            dcc.Link("1. Earn vs Burn Over Time", href="/graph1", style={'display': 'block', 'margin': '10px', 'fontSize': '18px'}),
+            dcc.Link("2. Earn by Channel", href="/earn", style={'display': 'block', 'margin': '10px', 'fontSize': '18px'}),
+            dcc.Link("3. Burn by Channel", href="/burn", style={'display': 'block', 'margin': '10px', 'fontSize': '18px'}),
+            dcc.Link("4. Monthly Earn", href="/earn-monthly", style={'display': 'block', 'margin': '10px', 'fontSize': '18px'}),
+            dcc.Link("5. Monthly Burn", href="/burn-monthly", style={'display': 'block', 'margin': '10px', 'fontSize': '18px'}),
+            dcc.Link("6. Earn/Burn Distribution", href="/distribution", style={'display': 'block', 'margin': '10px', 'fontSize': '18px'}),
+            dcc.Link("7. Redemption Rate by Age", href="/age-rate", style={'display': 'block', 'margin': '10px', 'fontSize': '18px'}),
+            dcc.Link("8. Redemption Rate by Channel", href="/channel-rate", style={'display': 'block', 'margin': '10px', 'fontSize': '18px'}),
+            dcc.Link("9. Loyalty Program Modelling", href="/model", style={'display': 'block', 'margin': '10px', 'fontSize': '18px'}),
+        ], style={'width': '50%', 'margin': '0 auto', 'textAlign': 'center'})
+    ], style={'padding': '50px 20px', 'backgroundColor': '#e3f2fd'})
 
-        html.H3("Select Year Range"),
+
+# ================= MINIMAL GRAPH PAGES =================
+def graph1_page():
+    return html.Div([
+        dcc.RangeSlider(
+            id='year_range_slider_main',
+            min=1997,
+            max=2022,
+            value=[1997, 2022],
+            marks={year: str(year) for year in range(1997, 2023)},
+            step=1
+        ),
+        dcc.Graph(id='graph1-main')
+    ])
+
+def earn_page():
+    return html.Div([
         dcc.RangeSlider(
             id='year_range_slider_earn',
             min=1997,
@@ -108,34 +154,21 @@ app.layout = html.Div(style={'textAlign': 'center', 'width': '80%', 'margin': 'a
             marks={year: str(year) for year in range(1997, 2023)},
             step=1
         ),
-        html.H3("Select Channels to Display"),
         dcc.Dropdown(
             id='channel_selection_earn',
             options=[
-                {'label': 'Miles Earned by Flight Activity (fl)', 'value': 'fl_earn'},
-                {'label': 'Miles Earned through Credit Card (cc)', 'value': 'cc_earn'},
-                {'label': 'Miles Earned through Other Channels (ot)', 'value': 'ot_earn'}
+                {'label': 'fl_earn', 'value': 'fl_earn'},
+                {'label': 'cc_earn', 'value': 'cc_earn'},
+                {'label': 'ot_earn', 'value': 'ot_earn'}
             ],
             multi=True,
             value=['fl_earn', 'cc_earn', 'ot_earn']
         ),
         dcc.Graph(id='graph_earn_1')
-    ], style={'margin-bottom': '20px'}),
-    
-    
-    # Layout for graph 2 - Burn
-    html.Div([
-        html.H1("Historical Burn with Different Channels"),
+    ])
 
-        # Text description for Graph 2 - Burn
-        html.Div([
-            html.P(
-                "This graph shows the historical burn with different channels over time. "
-                "You can adjust the year range and select channels using the sliders and dropdowns below."
-            )
-        ], style={'margin-bottom': '20px'}),
-
-        html.H3("Select Year Range"),
+def burn_page():
+    return html.Div([
         dcc.RangeSlider(
             id='year_range_slider_burn',
             min=1997,
@@ -144,33 +177,21 @@ app.layout = html.Div(style={'textAlign': 'center', 'width': '80%', 'margin': 'a
             marks={year: str(year) for year in range(1997, 2023)},
             step=1
         ),
-        html.H3("Select Channels to Display"),
         dcc.Dropdown(
             id='channel_selection_burn',
             options=[
-                {'label': 'Miles Burned by Flight Activity (fl)', 'value': 'fl_burn'},
-                {'label': 'Miles Burned through Credit Card (cc)', 'value': 'cc_burn'},
-                {'label': 'Miles Burned through Other Channels (ot)', 'value': 'ot_burn'}
+                {'label': 'fl_burn', 'value': 'fl_burn'},
+                {'label': 'cc_burn', 'value': 'cc_burn'},
+                {'label': 'ot_burn', 'value': 'ot_burn'}
             ],
             multi=True,
             value=['fl_burn', 'cc_burn', 'ot_burn']
         ),
         dcc.Graph(id='graph_burn_1')
-    ], style={'margin-bottom': '20px'}),
-    
-    # Layout for graph 3 earn
-    html.Div([
-        html.H1("Historical Earn with Different Channels - Monthly"),
+    ])
 
-        # Text description for Graph 3-a
-        html.Div([
-            html.P(
-                "This graph shows the historical earn with different channels on a monthly basis. "
-                "You can adjust the year range and select channels using the sliders and dropdowns below."
-            )
-        ], style={'margin-bottom': '20px'}),
-
-        html.H3("Select Year Range"),
+def earn_monthly_page():
+    return html.Div([
         dcc.RangeSlider(
             id='year_range_slider_earn_monthly',
             min=1997,
@@ -179,33 +200,21 @@ app.layout = html.Div(style={'textAlign': 'center', 'width': '80%', 'margin': 'a
             marks={year: str(year) for year in range(1997, 2023)},
             step=1
         ),
-        html.H3("Select Channels to Display"),
         dcc.Dropdown(
             id='channel_selection_earn_monthly',
             options=[
-                {'label': 'Miles Earned by Flight Activity (fl)', 'value': 'fl_earn'},
-                {'label': 'Miles Earned through Credit Card (cc)', 'value': 'cc_earn'},
-                {'label': 'Miles Earned through Other Channels (ot)', 'value': 'ot_earn'}
+                {'label': 'fl_earn', 'value': 'fl_earn'},
+                {'label': 'cc_earn', 'value': 'cc_earn'},
+                {'label': 'ot_earn', 'value': 'ot_earn'}
             ],
             multi=True,
             value=['fl_earn', 'cc_earn', 'ot_earn']
         ),
         dcc.Graph(id='graph_earn_monthly')
-    ], style={'margin-bottom': '20px'}),
-    
-    # Layout for graph_burn_monthly Graph 3-b
-    html.Div([
-        html.H1("Historical Burn with Different Channels - Monthly"),
+    ])
 
-        # Text description for Graph 3-b
-        html.Div([
-            html.P(
-                "This graph shows the historical burn with different channels on a monthly basis. "
-                "You can adjust the year range and select channels using the sliders and dropdowns below."
-            )
-        ], style={'margin-bottom': '20px'}),
-
-        html.H3("Select Year Range"),
+def burn_monthly_page():
+    return html.Div([
         dcc.RangeSlider(
             id='year_range_slider_burn_monthly',
             min=1997,
@@ -214,112 +223,65 @@ app.layout = html.Div(style={'textAlign': 'center', 'width': '80%', 'margin': 'a
             marks={year: str(year) for year in range(1997, 2023)},
             step=1
         ),
-        html.H3("Select Channels to Display"),
         dcc.Dropdown(
             id='channel_selection_burn_monthly',
             options=[
-                {'label': 'Miles Burned by Flight Activity (fl)', 'value': 'fl_burn'},
-                {'label': 'Miles Burned through Credit Card (cc)', 'value': 'cc_burn'},
-                {'label': 'Miles Burned through Other Channels (ot)', 'value': 'ot_burn'}
+                {'label': 'fl_burn', 'value': 'fl_burn'},
+                {'label': 'cc_burn', 'value': 'cc_burn'},
+                {'label': 'ot_burn', 'value': 'ot_burn'}
             ],
             multi=True,
             value=['fl_burn', 'cc_burn', 'ot_burn']
         ),
         dcc.Graph(id='graph_burn_monthly')
-    ], style={'margin-bottom': '20px'}),
-    
-    #  Layout for graph 4 and 5 combined
-    html.Div([
-        html.H1("Historical Earn-Burn Distribution"),
+    ])
 
-        # Text description for Graph 4 and 5
-        html.Div([
-            html.P(
-                "This graph shows the distribution of historical earn and burn. "
-                "You can check the distribution of 'earn' and 'burn' separately by clicking on the checkbox."
-            )
-        ], style={'margin-bottom': '20px'}),
-
+def distribution_page():
+    return html.Div([
         dcc.Graph(id='earn-burn-histogram'),
-        html.Button(id='dummy-input', style={'display': 'none'})  # Dummy input (hidden button)
-    ]),
+        html.Button(id='dummy-input', style={'display': 'none'})
+    ])
 
-    # Layout for graph 6
-    html.Div([
-        html.H1("Historical Redemption Rate"),
-
-        # Text description for Graph 6
-        html.Div([
-            html.P(
-                "This graph shows the historical redemption rate by age range. "
-                "Each point on the graph represents a specific age range and its corresponding redemption rate."
-            )
-        ], style={'margin-bottom': '20px'}),
-
+def age_rate_page():
+    return html.Div([
         dcc.Graph(id='graph_age_range_vs_r_rate_1')
-    ], style={'margin-bottom': '20px'}),
+    ])
 
-    # Layout for graph 7
-    html.Div([
-        html.H1("Historical Redemption Rate for Channels"),
-
-        # Text description for Graph 7
-        html.Div([
-            html.P(
-                "This graph shows the historical redemption rate for different channels by age range. "
-                "You can select channels using the dropdown below."
-            )
-        ], style={'margin-bottom': '20px'}),
-
-        html.H3("Select Channels to Display"),
+def channel_rate_page():
+    return html.Div([
         dcc.Dropdown(
             id='channel_selection_rate',
             options=[
-                {'label': 'Flight Redemption Rate (fl)', 'value': 'fl_r_rate'},
-                {'label': 'Credi-Card Redemption Rate (cc)', 'value': 'cc_r_rate'},
-                {'label': 'Redemption Rate for Other Channels (ot)', 'value': 'ot_r_rate'},
+                {'label': 'fl_r_rate', 'value': 'fl_r_rate'},
+                {'label': 'cc_r_rate', 'value': 'cc_r_rate'},
+                {'label': 'ot_r_rate', 'value': 'ot_r_rate'}
             ],
             multi=True,
             value=['fl_r_rate', 'cc_r_rate', 'ot_r_rate'],
         ),
         dcc.Graph(id='graph_age_range_vs_r_rate_channels')
-    ], style={'margin-bottom': '20px'}),
-    
-    
-    # Layout for model
-    html.Div([
+    ])
+
+# ================= MODEL PAGE (UNCHANGED) =================
+def model_page():
+    return html.Div([
         html.H1("Loyalty Program Modelling Exercise"),
-
-        html.Div([
-            f"In this predictive model exercise, our objective is to predict the status of each airline user based on selected features. The target variable can be chosen from three options: whether the user is an active member of airline's loyalty program, whether he or she uses an airline co-branded credit card, or whether he or she is an active redeemer of miles earned through airline's loyalty program participation. A value of 1 signifies active status (0 for inactive), credit card usage (0 for non-credit card user), or redemption of miles (0 for non-redemption).",
-            html.P(
-                "This section allows you to evaluate a logistic regression model on the given dataset. "
-                "Select features, target variable, and threshold. Click 'Run Evaluation' to view the results."
-            ),
-            
-        ], style={'marginBottom': '20px'}),
-
-        html.Label("Select Features", style={'fontWeight': 'bold'}),
+        html.Label("Select Features"),
         dcc.Dropdown(
             id='feature-selector',
             options=[{'label': col, 'value': col} for col in df.columns],
             multi=True,
             value=df.columns[2:].tolist()
         ),
-
         html.Br(),
-
-        html.Label("Select Target Variable", style={'fontWeight': 'bold'}),
+        html.Label("Select Target Variable"),
         dcc.Dropdown(
             id='target-variable',
-            options=[{'label': col, 'value': col} for col in  df.columns[1:4]],
+            options=[{'label': col, 'value': col} for col in df.columns[1:4]],
             value=df.columns[1]
         ),
-
         html.Br(),
-
-        html.Label("Select Threshold (Probability Cutoff)", style={'fontWeight': 'bold'}),
-        html.P("The threshold determines the probability cutoff for classifying instances. Changing it alters how predictions are made based on probabilities."),
+        html.Label("Select Threshold"),
         dcc.Slider(
             id='threshold-slider',
             min=0.1,
@@ -328,28 +290,30 @@ app.layout = html.Div(style={'textAlign': 'center', 'width': '80%', 'margin': 'a
             value=0.5,
             marks={i / 10: str(i / 10) for i in range(1, 11)}
         ),
-       
         html.Br(),
-
-        html.Div([
-            "Once you click 'Run Evaluation', please wait for 5 to 10 seconds for model training."
-        ], style={'marginTop': '20px'}),  # Added message for waiting
-
-        html.Br(),
-
         html.Button('Run Evaluation', id='run-evaluation'),
-
-        html.Br(),
-        html.Hr(style={'border-top': '2px solid black', 'font-weight': 'bold'}),
-
-        # Output section for evaluation results
+        html.Hr(),
         html.Div(id='evaluation-output')
     ])
-])
 
+# ================= ROUTER =================
+@app.callback(Output('page-content','children'), Input('url','pathname'))
+def route(path):
+    pages = {
+        '/graph1': graph1_page,
+        '/earn': earn_page,
+        '/burn': burn_page,
+        '/earn-monthly': earn_monthly_page,
+        '/burn-monthly': burn_monthly_page,
+        '/distribution': distribution_page,
+        '/age-rate': age_rate_page,
+        '/channel-rate': channel_rate_page,
+        '/model': model_page,
+    }
+    return pages.get(path, home_page)()
 
+# ================= CALLBACKS =================
 
-# Callback for main (Graph 1)
 @app.callback(
     Output('graph1-main', 'figure'),
     Input('year_range_slider_main', 'value')
@@ -358,7 +322,7 @@ def update_graph1_main(year_range):
     filtered_data = df1[(df1['year'] >= year_range[0]) & (df1['year'] <= year_range[1])]
 
     # Create subplot for 'earn' and 'burn'
-    fig = make_subplots(rows=2, cols=1, subplot_titles=('Earn Over Time', 'Burn Over Time'))
+    fig = make_subplots(rows=2, cols=1) # , subplot_titles=('Earn Over Time', 'Burn Over Time')
 
     # Subplot for 'earn'
     trace_earn = go.Scatter(x=filtered_data['year'], y=filtered_data['earn'], mode='lines+markers', name='Earn')
@@ -372,13 +336,14 @@ def update_graph1_main(year_range):
     fig.update_layout(height=800, showlegend=False)
 
     # Update x-axis and y-axis labels
-    fig.update_xaxes(title_text='Year', row=2, col=1)
-    fig.update_yaxes(title_text='Miles ', row=1, col=1)
-    fig.update_yaxes(title_text='Miles ', row=2, col=1)
+    # fig.update_xaxes(title_text='Year', row=2, col=1)
+    # fig.update_yaxes(title_text='Miles ', row=1, col=1)
+    # fig.update_yaxes(title_text='Miles ', row=2, col=1)
 
     return fig
 
-# Callback for plot_earn
+
+# Callback for plot_earn -- graph 2
 @app.callback(
     Output('graph_earn_1', 'figure'),
     Input('year_range_slider_earn', 'value'),
@@ -401,13 +366,15 @@ def update_graph_earn(year_range, selected_channels):
 
     # Update layout
     fig.update_layout(
-        xaxis_title='Year',
-        yaxis_title='Miles ',
+        # xaxis_title='Year',
+        # yaxis_title='Miles ',
         legend=dict(x=0, y=1, traceorder='normal', orientation='h'),
         margin=dict(l=0, r=0, t=0, b=0)  # Adjust margins as needed
     )
 
     return fig
+
+
 
 # Callback for plot_burn
 @app.callback(
@@ -443,8 +410,8 @@ def update_graph_burn(year_range, selected_channels):
 
     # Update layout
     fig.update_layout(
-        xaxis_title='Year',
-        yaxis_title='Miles',
+        # xaxis_title='Year',
+        # yaxis_title='Miles',
         legend=dict(x=0, y=1, traceorder='normal', orientation='h'),
         margin=dict(l=0, r=0, t=0, b=0)  # Adjust margins as needed
     )
@@ -476,8 +443,8 @@ def update_graph_earn_monthly(year_range, selected_channels):
 
     # Update layout
     fig.update_layout(
-        xaxis_title='Year',
-        yaxis_title='Miles',
+        # xaxis_title='Year',
+        # yaxis_title='Miles',
         legend=dict(x=0, y=1, traceorder='normal', orientation='h'),
         margin=dict(l=0, r=0, t=0, b=0)  # Adjust margins as needed
     )
@@ -509,8 +476,8 @@ def update_graph_earn_monthly(year_range, selected_channels):
 
     # Update layout
     fig.update_layout(
-        xaxis_title='Year',
-        yaxis_title='Miles',
+        # xaxis_title='Year',
+        # yaxis_title='Miles',
         legend=dict(x=0, y=1, traceorder='normal', orientation='h'),
         margin=dict(l=0, r=0, t=0, b=0)  # Adjust margins as needed
     )
@@ -533,17 +500,24 @@ def update_graph(n_clicks):
     fig.add_trace(go.Bar(x=df4['burn_range'], y=df4['burn_count'], name='Burn'))
 
     # Updating layout
-    fig.update_layout(barmode='group', xaxis_title='Ranges', yaxis_title='Count')
+    fig.update_layout(barmode='group') # , xaxis_title='Ranges', yaxis_title='Count'
 
     return fig
 
 
 # Callback for graph 6 
+# ================= FIXED CALLBACK FOR GRAPH 6 (NO LAYOUT CHANGE NEEDED) =================
+
 @app.callback(
     Output('graph_age_range_vs_r_rate_1', 'figure'),
-    Input('channel_selection_rate', 'value')
+    Input('url', 'pathname'),  # ← Uses existing global url (always available)
+    prevent_initial_call=False
 )
-def update_graph_age_range_vs_r_rate(selected_channels):
+def update_graph_age_range_vs_r_rate(pathname):
+    # Only render on age-rate page
+    if '/age-rate' not in pathname:
+        return go.Figure()  # Empty on other pages
+    
     sns.set_palette("husl")
 
     age_order = ['0-1', '1-5', '5-10', '10-20', '20-30', '30-40', '40-50+']
@@ -561,8 +535,8 @@ def update_graph_age_range_vs_r_rate(selected_channels):
     ))
 
     fig.update_layout(
-        xaxis_title='Age Range',
-        yaxis_title='Redemption Rate',
+        # xaxis_title='Age Range',
+        # yaxis_title='Redemption Rate',
         font=dict(size=15),
         showlegend=False
     )
@@ -599,8 +573,8 @@ def update_graph_age_range_vs_r_rate_channels(selected_channels):
         ))
 
     fig.update_layout(
-        xaxis_title='Age Range',
-        yaxis_title='Redemption Rate',
+        # xaxis_title='Age Range',
+        # yaxis_title='Redemption Rate',
         font=dict(size=15),
         showlegend=True
     )
@@ -642,13 +616,10 @@ def logistic_regression_evaluation(df, features, target, threshold=0.5):
     y = df[target]
 
     # Split the data into training and testing sets
-    scaler = StandardScaler()
-    x = scaler.fit_transform(x)
     X_train, X_test, Y_train, Y_test = train_test_split(x, y, random_state=66, test_size=0.3)
 
     # Train Logistic Regression model
-    # old - log_reg = LogisticRegression()
-    log_reg = LogisticRegression(max_iter=100, solver='liblinear', random_state=42)
+    log_reg = LogisticRegression()
     log_reg.fit(X_train, Y_train)
 
     # Make predictions on the training set
@@ -691,15 +662,7 @@ def logistic_regression_evaluation(df, features, target, threshold=0.5):
     ])
 
     # Perform cross-validation
-    # old - CVscore = cross_val_score(LogisticRegression(), x, y, cv=10, scoring='precision')
-    CVscore = cross_val_score(
-    LogisticRegression(max_iter=200, solver='liblinear'),
-    x, y,
-    cv=3,              # was 10
-    scoring='precision',
-    n_jobs=1           # IMPORTANT: prevent parallel memory spikes
-    )
-
+    CVscore = cross_val_score(LogisticRegression(), x, y, cv=3, scoring='precision')
 
     # Classification report
     class_report = classification_report(Y_test, y_test_pred, output_dict=True)
@@ -850,7 +813,7 @@ def logistic_regression_evaluation(df, features, target, threshold=0.5):
             
     return result
 
-# Run the app
-from threading import Timer
+
+# ================= RUN =================
 if __name__ == '__main__':
-    app.run(debug=True)    
+    app.run(debug=True)
